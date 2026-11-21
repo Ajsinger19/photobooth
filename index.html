@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Photo Booth</title>
+<link href="https://fonts.googleapis.com/css?family=Righteous&display=swap" rel="stylesheet">
+<style>
+/* Written in ES5 / old-Safari-safe CSS so it runs on an iPad Air (iOS 12). */
+html,body{margin:0;height:100%;background:#2a0508;color:#fff3e0;overflow:hidden;
+  font-family:-apple-system,Helvetica,Arial,sans-serif;-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;display:none}
+.screen.on{display:block}
+.curtain{position:absolute;top:0;left:0;right:0;bottom:0;
+  background:repeating-linear-gradient(90deg,#5c0a12 0,#8e1420 30px,#5c0a12 60px)}
+.themes{position:absolute;left:4%;right:4%;bottom:15.5%;height:8%;display:-webkit-flex;display:flex;
+  -webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center}
+.themes .seg button{padding:0 16px}
+.sw{display:inline-block;width:18px;height:18px;border-radius:50%;vertical-align:-3px;margin-right:8px;border:2px solid rgba(255,255,255,.7)}
+.frame{position:absolute;top:4%;left:4%;right:4%;bottom:25%;border-radius:18px;overflow:hidden;
+  background:#000;box-shadow:0 0 0 6px #f4c542,0 12px 40px rgba(0,0,0,.6)}
+video{width:100%;height:100%;object-fit:cover;-webkit-transform:scaleX(-1);transform:scaleX(-1)}
+.bar{position:absolute;left:4%;right:4%;bottom:3%;height:11%;display:-webkit-flex;display:flex;
+  -webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between}
+h1{font-family:Righteous,-apple-system,sans-serif;font-weight:400;font-size:44px;margin:0;color:#f4c542;
+  text-shadow:0 3px 0 #3a0207}
+button{font:inherit;border:0;border-radius:999px;cursor:pointer;color:#2a0508;background:#f4c542;
+  min-height:56px;padding:0 28px;font-size:20px;font-weight:700}
+button.ghost{background:rgba(255,243,224,.15);color:#fff3e0}
+button.big{font-family:Righteous,-apple-system,sans-serif;font-weight:400;font-size:34px;min-height:84px;padding:0 48px;
+  box-shadow:0 6px 0 #a87d10}
+button:active{-webkit-transform:translateY(3px);transform:translateY(3px)}
+.seg{display:-webkit-flex;display:flex;background:rgba(0,0,0,.3);border-radius:999px;padding:4px}
+.seg button{background:transparent;color:#fff3e0;min-height:48px;font-size:18px;padding:0 20px}
+.seg button.sel{background:#fff3e0;color:#2a0508}
+#count{position:absolute;top:0;left:0;right:0;bottom:0;display:-webkit-flex;display:flex;
+  -webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;
+  font-family:Righteous,-apple-system,sans-serif;font-size:260px;color:#fff;text-shadow:0 8px 30px rgba(0,0,0,.6);pointer-events:none}
+#shotno{position:absolute;top:18px;left:0;right:0;text-align:center;font-size:24px;font-weight:700;
+  text-shadow:0 2px 8px #000;pointer-events:none}
+#flash{position:absolute;top:0;left:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;
+  -webkit-transition:opacity .5s;transition:opacity .5s}
+#flash.pop{opacity:1;-webkit-transition:none;transition:none}
+#result .wrap{position:absolute;top:3%;bottom:15%;left:0;right:0;text-align:center}
+#result img{max-height:100%;max-width:92%;box-shadow:0 12px 40px rgba(0,0,0,.6);-webkit-touch-callout:default}
+.hint{font-size:22px;text-align:center}
+#msg{position:absolute;top:50%;left:8%;right:8%;-webkit-transform:translateY(-50%);transform:translateY(-50%);
+  text-align:center;font-size:22px;line-height:1.5}
+#gallery .grid{position:absolute;top:3%;bottom:15%;left:4%;right:4%;overflow-y:auto;-webkit-overflow-scrolling:touch;text-align:center}
+#gallery .grid img{height:300px;margin:10px;box-shadow:0 6px 20px rgba(0,0,0,.5);-webkit-touch-callout:default}
+#settings .panel{position:absolute;top:10%;left:15%;right:15%;background:#3a0710;border-radius:18px;padding:28px;box-shadow:0 0 0 4px #f4c542}
+label{display:block;margin:14px 0 6px;font-size:18px}
+input[type=text]{width:100%;box-sizing:border-box;font-size:20px;padding:12px;border-radius:10px;border:0}
+.row{display:-webkit-flex;display:flex;-webkit-justify-content:flex-end;justify-content:flex-end;margin-top:24px}
+.row button{margin-left:12px}
+@media (max-width:700px){h1{font-size:28px}button.big{font-size:26px;padding:0 28px;min-height:70px}#count{font-size:160px}}
+</style>
+</head>
+<body>
+<div class="curtain"></div>
+
+<div id="booth" class="screen on">
+  <div class="frame">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="shotno"></div>
+    <div id="count"></div>
+    <div id="msg">Starting camera…</div>
+  </div>
+  <div class="themes">
+    <div class="seg" id="theme">
+      <button data-t="classic"><span class="sw" style="background:#fffaf0"></span>Classic</button>
+      <button data-t="holly" class="sel"><span class="sw" style="background:#0f5132"></span>Holly Jolly</button>
+      <button data-t="winterzoo"><span class="sw" style="background:#13254d"></span>Winter Zoo</button>
+      <button data-t="candy"><span class="sw" style="background:repeating-linear-gradient(45deg,#c8102e 0,#c8102e 4px,#fff 4px,#fff 8px)"></span>Candy Cane</button>
+    </div>
+  </div>
+  <div class="bar">
+    <h1 id="title">Photo Booth</h1>
+    <div class="seg" id="mode">
+      <button data-n="4" class="sel">4-photo strip</button>
+      <button data-n="1">Single</button>
+    </div>
+    <button class="big" id="go">Start</button>
+  </div>
+</div>
+
+<div id="result" class="screen">
+  <div class="wrap"><img id="out" alt="Your photos"></div>
+  <div class="bar">
+    <div class="hint">Press and hold the photo to save it</div>
+    <button class="big" id="done">Done</button>
+  </div>
+</div>
+
+<div id="gallery" class="screen">
+  <div class="grid" id="grid"></div>
+  <div class="bar">
+    <div class="hint" id="gcount"></div>
+    <button class="big" id="gback">Back</button>
+  </div>
+</div>
+
+<div id="settings" class="screen">
+  <div class="panel">
+    <h1>Settings</h1>
+    <label for="cap">Caption printed on photos</label>
+    <input type="text" id="cap" maxlength="40">
+    <label for="org">Second line (themed strips)</label>
+    <input type="text" id="org" maxlength="50">
+    <label for="site">Website line</label>
+    <input type="text" id="site" maxlength="40">
+    <label for="cd">Countdown seconds</label>
+    <input type="text" id="cd" inputmode="numeric" maxlength="2">
+    <div class="row">
+      <button class="ghost" id="sclose">Cancel</button>
+      <button id="ssave">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="flash"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var video = $('video'), msg = $('msg'), count = $('count'), shotno = $('shotno'), flash = $('flash');
+  var shots = 4, busy = false, idleTimer = null, gallery = [], tapCount = 0, tapTimer = null;
+  var cfg = { caption: 'Happy Holidays', org: 'Miller Park Zoological Society', site: 'mpzs.org', countdown: 3, theme: 'holly' };
+  try { var s = JSON.parse(localStorage.getItem('pb-cfg')); if (s) { for (var key in s) if (s.hasOwnProperty(key)) cfg[key] = s[key]; } } catch (e) {}
+  function saveCfg() { try { localStorage.setItem('pb-cfg', JSON.stringify(cfg)); } catch (e) {} }
+
+  function show(id) {
+    var all = document.querySelectorAll('.screen');
+    for (var i = 0; i < all.length; i++) all[i].className = 'screen';
+    $(id).className = 'screen on';
+  }
+
+  // ---- camera ----
+  function startCamera() {
+    if (!window.isSecureContext && location.protocol !== 'https:') {
+      msg.innerHTML = 'The camera needs a secure page.<br>Open this booth from its https:// address.'; return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      msg.innerHTML = 'This browser can\'t open the camera.<br>Use Safari on iOS 11 or newer.'; return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } } })
+      .then(function (stream) {
+        video.srcObject = stream;
+        var p = video.play(); if (p && p['catch']) p['catch'](function () {});
+        msg.style.display = 'none';
+      })
+      ['catch'](function (err) {
+        msg.innerHTML = 'Couldn\'t open the camera (' + (err && err.name ? err.name : 'error') + ').<br>' +
+          'Allow camera access for this site in Safari, then tap here to retry.';
+        msg.onclick = function () { location.reload(); };
+      });
+  }
+
+  // ---- sound ----
+  var actx = null;
+  function beep(freq, len) {
+    try {
+      if (!actx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; actx = new AC(); }
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = freq; o.connect(g); g.connect(actx.destination);
+      g.gain.setValueAtTime(0.15, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + len);
+      o.start(); o.stop(actx.currentTime + len);
+    } catch (e) {}
+  }
+
+  // ---- capture ----
+  function grab() {
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var c = document.createElement('canvas'); c.width = 1200; c.height = 900;
+    var ctx = c.getContext('2d');
+    // crop to 4:3, mirrored like the preview
+    var tw = vw, th = vw * 3 / 4;
+    if (th > vh) { th = vh; tw = vh * 4 / 3; }
+    ctx.translate(c.width, 0); ctx.scale(-1, 1);
+    ctx.drawImage(video, (vw - tw) / 2, (vh - th) / 2, tw, th, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  function countdown(n, done) {
+    count.innerHTML = n; beep(660, 0.12);
+    if (n <= 1) { setTimeout(function () { count.innerHTML = ''; done(); }, 900); return; }
+    setTimeout(function () { countdown(n - 1, done); }, 900);
+  }
+
+  function session() {
+    if (busy || !video.videoWidth) return;
+    busy = true; clearTimeout(idleTimer);
+    $('go').style.visibility = 'hidden'; $('mode').style.visibility = 'hidden'; $('theme').style.visibility = 'hidden';
+    var photos = [];
+    function next() {
+      if (photos.length === shots) { shotno.innerHTML = ''; finish(photos); return; }
+      shotno.innerHTML = shots > 1 ? 'Photo ' + (photos.length + 1) + ' of ' + shots : '';
+      countdown(cfg.countdown, function () {
+        photos.push(grab()); beep(1200, 0.25);
+        flash.className = 'pop'; setTimeout(function () { flash.className = ''; }, 60);
+        setTimeout(next, 1300);
+      });
+    }
+    next();
+  }
+
+  // ---- strip themes (all drawn in code, no images needed) ----
+  var THEMES = {
+    classic:   { bg: '#fffaf0', frame: null, title: '#5c0a12', sub: '#8a5a3c', festive: false },
+    holly:     { bg: '#0f5132', frame: '#f4c542', title: '#ffffff', sub: '#f4dfa0', festive: true },
+    winterzoo: { bg: '#13254d', frame: '#ffffff', title: '#ffffff', sub: '#bcd3f5', festive: true },
+    candy:     { bg: '#ffffff', frame: '#c8102e', title: '#c8102e', sub: '#0f5132', festive: true }
+  };
+  var rnd = 1;
+  function rand() { rnd = (rnd * 16807) % 2147483647; return rnd / 2147483647; }
+
+  function snowflake(ctx, x, y, r, col) {
+    ctx.save(); ctx.translate(x, y); ctx.strokeStyle = col; ctx.lineWidth = Math.max(1.5, r / 6); ctx.lineCap = 'round';
+    for (var k = 0; k < 6; k++) {
+      ctx.rotate(Math.PI / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r);
+      ctx.moveTo(0, -r * 0.55); ctx.lineTo(-r * 0.25, -r * 0.8); ctx.moveTo(0, -r * 0.55); ctx.lineTo(r * 0.25, -r * 0.8);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function holly(ctx, x, y, s, flip) {
+    ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1);
+    ctx.fillStyle = '#2e8b57';
+    for (var k = 0; k < 2; k++) {
+      ctx.save(); ctx.rotate(k ? -0.5 : 0.5 + Math.PI);
+      ctx.beginPath(); ctx.ellipse ? ctx.ellipse(s * 0.9, 0, s, s * 0.42, 0, 0, Math.PI * 2) : ctx.arc(s * 0.9, 0, s * 0.5, 0, Math.PI * 2);
+      ctx.fill(); ctx.restore();
+    }
+    ctx.fillStyle = '#d7263d';
+    var b = [[0, -s * 0.25], [s * 0.3, s * 0.1], [-s * 0.3, s * 0.1]];
+    for (k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(b[k][0], b[k][1], s * 0.25, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+  function lights(ctx, x0, x1, y, sag) {
+    var cols = ['#ff4d4d', '#ffd23f', '#3ddc84', '#4da3ff', '#ff8ad8'], n = Math.round((x1 - x0) / 46), k, t, x, yy;
+    ctx.strokeStyle = '#1b1b1b'; ctx.lineWidth = 3; ctx.beginPath();
+    for (k = 0; k <= 40; k++) { t = k / 40; x = x0 + (x1 - x0) * t; yy = y + Math.sin(t * Math.PI * 3) * sag; k ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+    ctx.stroke();
+    for (k = 0; k <= n; k++) {
+      t = k / n; x = x0 + (x1 - x0) * t; yy = y + Math.sin(t * Math.PI * 3) * sag;
+      ctx.fillStyle = cols[k % cols.length];
+      ctx.beginPath(); ctx.arc(x, yy + 11, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(x - 2.5, yy + 8, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  function paw(ctx, x, y, s, rot, col) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(0, s * 0.35, s * 0.45, 0, Math.PI * 2); ctx.fill();
+    var toes = [[-0.55, -0.25], [-0.2, -0.55], [0.2, -0.55], [0.55, -0.25]];
+    for (var k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(toes[k][0] * s, toes[k][1] * s, s * 0.2, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+  function candyBorder(ctx, w, h, b) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.rect(b, b, w - 2 * b, h - 2 * b);
+    ctx.clip('evenodd'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 14;
+    for (var d = -h; d < w + h; d += 40) { ctx.beginPath(); ctx.moveTo(d, 0); ctx.lineTo(d - h, h); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function finish(photos) {
+    var dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    var th = THEMES[cfg.theme] || THEMES.classic;
+    var c = document.createElement('canvas'), ctx = c.getContext('2d'), m, pw, ph, i, k;
+    var capH = th.festive ? 250 : 150, single = photos.length === 1;
+    m = single ? 56 : (th.festive ? 46 : 28);
+    pw = single ? 1200 : 600; ph = single ? 900 : 450;
+    var top = th.festive && !single ? 70 : m;           // room for string lights on strips
+    c.width = pw + m * 2;
+    c.height = top + (ph + m) * photos.length + capH;
+    var W = c.width, H = c.height;
+    rnd = Math.floor(Math.random() * 100000) + 1;
+
+    ctx.fillStyle = th.bg; ctx.fillRect(0, 0, W, H);
+    if (cfg.theme === 'candy') candyBorder(ctx, W, H, 18);
+    if (cfg.theme === 'winterzoo') {
+      var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b1733'); g.addColorStop(1, '#1f3b73');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    // background sprinkles in the margins
+    if (th.festive) {
+      for (k = 0; k < (single ? 40 : 70); k++) {
+        var sx = rand() * W, sy = rand() * H;
+        if (cfg.theme === 'candy') continue;
+        if (sy > H - capH + 15 && sy < H - 45 && sx > W * 0.1 && sx < W * 0.9) continue; // keep text clear
+        snowflake(ctx, sx, sy, 4 + rand() * 9, cfg.theme === 'holly' ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.5)');
+      }
+    }
+    // photos
+    for (i = 0; i < photos.length; i++) {
+      var py = top + i * (ph + m);
+      if (th.frame) { ctx.fillStyle = th.frame; ctx.fillRect(m - 6, py - 6, pw + 12, ph + 12); }
+      ctx.drawImage(photos[i], m, py, pw, ph);
+    }
+    if (th.festive && !single) lights(ctx, 20, W - 20, 22, 10);
+
+    // caption block
+    var baseY = H - capH, cx = W / 2;
+    ctx.textAlign = 'center';
+    if (th.festive) {
+      if (cfg.theme === 'winterzoo') {
+        var tracks = 7;
+        for (k = 0; k < tracks; k++) paw(ctx, 40 + k * (W - 80) / (tracks - 1), baseY + capH - 26 - (k % 2) * 14, 12, 1.57, 'rgba(255,255,255,.28)');
+      }
+      if (cfg.theme !== 'winterzoo') { holly(ctx, 70, baseY + 70, 26, false); holly(ctx, W - 70, baseY + 70, 26, true); }
+      ctx.fillStyle = th.title; ctx.font = (single ? '72px' : '56px') + ' Righteous, -apple-system, sans-serif';
+      ctx.fillText(cfg.caption || 'Happy Holidays', cx, baseY + 78);
+      ctx.fillStyle = th.sub; ctx.font = '600 ' + (single ? '38px' : '30px') + ' -apple-system, Helvetica, sans-serif';
+      if (cfg.org) ctx.fillText(cfg.org, cx, baseY + 128);
+      ctx.font = (single ? '30px' : '24px') + ' -apple-system, Helvetica, sans-serif';
+      ctx.fillText((cfg.site ? cfg.site + '   •   ' : '') + dateStr, cx, baseY + (cfg.org ? 170 : 130));
+    } else {
+      ctx.fillStyle = th.title; ctx.font = '52px Righteous, -apple-system, sans-serif';
+      ctx.fillText(cfg.caption || '', cx, baseY + 62);
+      ctx.font = '28px -apple-system, Helvetica, sans-serif'; ctx.fillStyle = th.sub;
+      ctx.fillText((cfg.site ? cfg.site + '   •   ' : '') + dateStr, cx, baseY + 108);
+    }
+
+    var url = c.toDataURL('image/jpeg', 0.9);
+    gallery.unshift(url); if (gallery.length > 30) gallery.pop();
+    $('out').src = url;
+    show('result');
+    busy = false;
+    $('go').style.visibility = ''; $('mode').style.visibility = ''; $('theme').style.visibility = '';
+    idleTimer = setTimeout(backToBooth, 90000);
+  }
+
+  function backToBooth() { clearTimeout(idleTimer); show('booth'); }
+
+  // ---- gallery ----
+  function openGallery() {
+    var html = '';
+    for (var i = 0; i < gallery.length; i++) html += '<img src="' + gallery[i] + '" alt="Photo ' + (i + 1) + '">';
+    $('grid').innerHTML = html || '<p class="hint">No photos yet.</p>';
+    $('gcount').innerHTML = gallery.length ? gallery.length + ' taken since this page opened — press and hold to save' : '';
+    show('gallery');
+  }
+
+  // ---- settings (hidden: tap the title 5 times) ----
+  function openSettings() { $('cap').value = cfg.caption; $('org').value = cfg.org; $('site').value = cfg.site; $('cd').value = cfg.countdown; show('settings'); }
+  function applyTitle() { $('title').innerHTML = (cfg.caption || 'Photo Booth').replace(/[<>&]/g, ''); }
+
+  // ---- events ----
+  $('go').onclick = session;
+  $('done').onclick = backToBooth;
+  $('gback').onclick = backToBooth;
+  var modeBtns = $('mode').getElementsByTagName('button');
+  for (var i = 0; i < modeBtns.length; i++) {
+    modeBtns[i].onclick = function () {
+      for (var j = 0; j < modeBtns.length; j++) modeBtns[j].className = '';
+      this.className = 'sel'; shots = parseInt(this.getAttribute('data-n'), 10);
+    };
+  }
+  var themeBtns = $('theme').getElementsByTagName('button');
+  function markTheme() { for (var j = 0; j < themeBtns.length; j++) themeBtns[j].className = themeBtns[j].getAttribute('data-t') === cfg.theme ? 'sel' : ''; }
+  for (i = 0; i < themeBtns.length; i++) {
+    themeBtns[i].onclick = function () { cfg.theme = this.getAttribute('data-t'); saveCfg(); markTheme(); };
+  }
+  markTheme();
+  $('title').onclick = function () {
+    tapCount++; clearTimeout(tapTimer);
+    tapTimer = setTimeout(function () { tapCount = 0; }, 1500);
+    if (tapCount >= 5) { tapCount = 0; openSettings(); }
+  };
+  $('title').ondblclick = function (e) { e.preventDefault(); };
+  // long-press the title for the gallery
+  var lp = null;
+  $('title').addEventListener('touchstart', function () { lp = setTimeout(openGallery, 900); });
+  $('title').addEventListener('touchend', function () { clearTimeout(lp); });
+  $('sclose').onclick = backToBooth;
+  $('ssave').onclick = function () {
+    cfg.caption = $('cap').value; cfg.org = $('org').value; cfg.site = $('site').value;
+    var n = parseInt($('cd').value, 10); cfg.countdown = n > 0 && n < 11 ? n : 3;
+    saveCfg(); applyTitle(); backToBooth();
+  };
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+
+  applyTitle();
+  startCamera();
+})();
+</script>
+</body>
+</html>
